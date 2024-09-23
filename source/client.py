@@ -14,31 +14,35 @@ def send_file(file_paths):
 
             # Connect the socket to the path
             s.connect(socket_path)
-            
-            for file_path in file_paths:
-                # Get the file name and size
-                file_name = os.path.basename(file_path)
-                file_size = os.path.getsize(file_path)
-                
-                # Send the file size
-                s.sendall(struct.pack('!I', file_size))
-                
-                # Send the file name size and name
-                s.sendall(struct.pack('!I', len(file_name)))
-                s.sendall(file_name.encode('utf-8'))
 
-                # Open the file and send its content
-                with open(file_path, 'rb') as file:
-                    while True:
-                        chunk = file.read(line_len)
-                        if not chunk:
-                            break
-                        s.sendall(chunk)
-                
-            print("Files sent")
+            try:
             
-    except Exception as e:
-        print(f"Server not running {e}.")
+                for file_path in file_paths:
+                    # Get the file name and size
+                    file_name = os.path.basename(file_path)
+                    file_size = os.path.getsize(file_path)
+                    
+                    # Send the file size
+                    s.sendall(struct.pack('!I', file_size))
+                    
+                    # Send the file name size and name
+                    s.sendall(struct.pack('!I', len(file_name)))
+                    s.sendall(file_name.encode('utf-8'))
+
+                    # Open the file and send its content
+                    with open(file_path, 'rb') as file:
+                        while True:
+                            chunk = file.read(line_len)
+                            if not chunk:
+                                break
+                            s.sendall(chunk)
+                    
+                print("Files sent")
+        
+            except FileNotFoundError as fnf:
+                print(f"file not found {fnf}")
+    except socket.error as se:
+        print(f"Server not running start server.py first {se}")
     
 
 
