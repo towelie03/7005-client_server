@@ -35,7 +35,7 @@ def send_file(file_paths):
                             break
                         s.sendall(chunk)
                 
-                print("All files sent.")
+            print("Files sent")
             
     except Exception as e:
         print(f"Server not running {e}.")
