@@ -56,7 +56,7 @@ def recv_file():
                     with open(file_name, 'wb') as file:
                         bytes_received = 0
                         while bytes_received < file_size:
-                            chunk = conn.recv(min(file_size - bytes_received, 4096))
+                            chunk = conn.recv(min(file_size - bytes_received, line_len))
                             if not chunk:
                                 break
                             file.write(chunk)
