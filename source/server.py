@@ -69,6 +69,9 @@ def recv_file():
 
                     print("File received\n")
 
+                    confirm_msg = "All files sent successfully :)"
+                    conn.sendall(confirm_msg.encode())
+
             except Exception as e:
                 print(f"error {e}")
                 conn.close()
@@ -78,6 +81,7 @@ def recv_file():
     finally:
         s.close()
         print("Server closed")
+
 
 
 def main():

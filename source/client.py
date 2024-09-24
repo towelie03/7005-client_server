@@ -3,48 +3,41 @@ import socket
 import struct
 import argparse
 
-# Hard-coded socket path
 socket_path = "/tmp/socket"
 line_len = 4096
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 def send_file(file_paths):
     try:
-        # Create a Unix domain socket
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.connect(socket_path)
 
-            # Connect the socket to the path
-            s.connect(socket_path)
+        try:
+            for file_path in file_paths:
+                file_name = os.path.basename(file_path)
+                file_size = os.path.getsize(file_path)
+                
+                s.sendall(struct.pack('!I', file_size))
+                
+                s.sendall(struct.pack('!I', len(file_name)))
+                s.sendall(file_name.encode('utf-8'))
 
-            try:
-            
-                for file_path in file_paths:
-                    # Get the file name and size
-                    file_name = os.path.basename(file_path)
-                    file_size = os.path.getsize(file_path)
-                    
-                    # Send the file size
-                    s.sendall(struct.pack('!I', file_size))
-                    
-                    # Send the file name size and name
-                    s.sendall(struct.pack('!I', len(file_name)))
-                    s.sendall(file_name.encode('utf-8'))
+                with open(file_path, 'rb') as file:
+                    while True:
+                        chunk = file.read(line_len)
+                        if not chunk:
+                            break
+                        s.sendall(chunk)
+                
+        except FileNotFoundError as fnf:
+            print(f"file not found {fnf}")
 
-                    # Open the file and send its content
-                    with open(file_path, 'rb') as file:
-                        while True:
-                            chunk = file.read(line_len)
-                            if not chunk:
-                                break
-                            s.sendall(chunk)
-                    
-                print("Files sent")
-        
-            except FileNotFoundError as fnf:
-                print(f"file not found {fnf}")
-    except socket.error as se:
-        print(f"Server not running start server.py first {se}")
+        confirm_msg = s.recv(line_len)
+        print(confirm_msg.decode())
     
-
+    except socket.error as se:
+        print(f"Socket error start server.py to bind the socket {se}")
+    finally:
+        s.close()
 
 def main():
     parser = argparse.ArgumentParser(description='Send a files over a Unix domain socket.')
