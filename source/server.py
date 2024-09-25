@@ -27,7 +27,7 @@ def setup_server_socket():
 
 def wait_for_connection(server_sock):
     try:
-        conn, _ = server_sock.accept()
+        conn, client_addr = server_sock.accept()
         return conn
     except Exception as e:
         print(f"Error: Unable to accept connection: {e}")
@@ -53,16 +53,9 @@ def send_reply(conn, reply):
     except Exception as e:
         print(f"Error: Unable to send response: {e}")
 
-def shutdown_socket(sock):
-    try:
-        sock.close()
-        if os.path.exists(SOCKET_PATH):
-            os.remove(SOCKET_PATH)
-    except Exception as e:
-        print(f"Error: Unable to close socket: {e}")
-
-def run_server():
+def main():
     server_sock = setup_server_socket()
+    print("Ctrl+C to shutdown and exit")
 
     try:
         while True:
@@ -71,7 +64,7 @@ def run_server():
                 continue
 
             try:
-                file_req = conn.recv(1024).decode('utf-8').strip()
+                file_req = conn.recv(LINE_LEN).decode('utf-8')
                 if not file_req:
                     break
                 
@@ -83,12 +76,15 @@ def run_server():
                 print(f"Error handling request: {e}")
             finally:
                 conn.close()
+
     except KeyboardInterrupt:
-        print("\nServer shutting down...")
+        print("\nShutting down and closing the connection")
     finally:
-        shutdown_socket(server_sock)
-        print("Server socket closed and removed")
+        server_sock.close()
+        if os.path.exists(SOCKET_PATH):
+            os.remove(SOCKET_PATH)
+        print("Server socket removed")
 
 if __name__ == "__main__":
-    run_server()
+    main()
 

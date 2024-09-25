@@ -42,13 +42,7 @@ def get_server_response(sock):
         print(f"Error: Unable to receive response: {e}")
         return None
 
-def close_connection(sock):
-    try:
-        sock.close()
-    except Exception as e:
-        print(f"Error: Unable to close socket: {e}")
-
-def run_client():
+def main():
     args = parse_args()  # Get the parsed arguments
     file_requests = args.file_paths  # Access the file_paths attribute
    
@@ -56,12 +50,11 @@ def run_client():
         sock = connect_to_server()
         send_file_request(sock, file_request.strip())
         
-        response = get_server_response(sock)
-        if response:
-            print(f"Response for {file_request}:\n{response}")
-        
-        close_connection(sock)
-
+        data = get_server_response(sock)
+        if data:
+            print(f"Contents in {file_request}:\n{data}")
+        sock.close()
+    
 if __name__ == "__main__":
-    run_client()
+    main()
 
