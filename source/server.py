@@ -7,15 +7,22 @@ import stat
 SOCKET_PATH = '/tmp/socket'
 LINE_LEN = 4096
 
-def setup_server_socket():
-    try:
-        if os.path.exists(SOCKET_PATH):
+def check_socket_path():
+    if os.path.exists(SOCKET_PATH):
+        # Attempt to check if it's a socket file
+        try:
             if stat.S_ISSOCK(os.stat(SOCKET_PATH).st_mode):
                 os.remove(SOCKET_PATH)
+                print(f"Removed existing socket file: {SOCKET_PATH}")
             else:
-                print(f"Error: '{SOCKET_PATH}' is not a socket file.")
-                sys.exit(1)
-        
+                print(f"Warning: '{SOCKET_PATH}' exists but is not a socket file.")
+        except Exception as e:
+            print(f"Error checking socket file: {e}")
+    else:
+        print(f"No existing socket file to remove at: {SOCKET_PATH}")
+
+def setup_server_socket():
+    try:        
         server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server_sock.bind(SOCKET_PATH)
         server_sock.listen(1)
