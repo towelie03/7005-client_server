@@ -1,52 +1,67 @@
-import os
 import socket
-import struct
+import sys
 import argparse
 
-socket_path = "/tmp/socket"
-line_len = 4096
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+# Global variables
+SOCKET_PATH = '/tmp/socket'
+LINE_LEN = 4096
 
-def send_file(file_paths):
+def parse_args():
+    parser = argparse.ArgumentParser(description="Unix domain socket assignment 1")
+    parser.add_argument('file_paths', nargs='+', help="Path of files to send")
+    return parser.parse_args()  # Return the parsed arguments
+
+def connect_to_server():
     try:
-        s.connect(socket_path)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(SOCKET_PATH)
+        return sock
+    except Exception as e:
+        print(f"Error: Unable to connect to server socket: {e}")
+        sys.exit(1)
 
-        try:
-            for file_path in file_paths:
-                file_name = os.path.basename(file_path)
-                file_size = os.path.getsize(file_path)
-                
-                s.sendall(struct.pack('!I', file_size))
-                
-                s.sendall(struct.pack('!I', len(file_name)))
-                s.sendall(file_name.encode('utf-8'))
+def send_file_request(sock, file_request):
+    try:
+        sock.sendall(file_request.encode('utf-8'))
+    except Exception as e:
+        print(f"Error: Unable to send request: {e}")
+        sock.close()
+        sys.exit(1)
 
-                with open(file_path, 'rb') as file:
-                    while True:
-                        chunk = file.read(line_len)
-                        if not chunk:
-                            break
-                        s.sendall(chunk)
-                
-        except FileNotFoundError as fnf:
-            print(f"file not found {fnf}")
+def get_server_response(sock):
+    try:
+        data = ""
+        while True:
+            part = sock.recv(LINE_LEN).decode('utf-8')
+            if not part:
+                break
+            data += part
+        
+        return data
+    except Exception as e:
+        print(f"Error: Unable to receive response: {e}")
+        return None
 
-        confirm_msg = s.recv(line_len)
-        print(confirm_msg.decode())
-    
-    except socket.error as se:
-        print(f"Socket error start server.py to bind the socket {se}")
-    finally:
-        s.close()
+def close_connection(sock):
+    try:
+        sock.close()
+    except Exception as e:
+        print(f"Error: Unable to close socket: {e}")
 
-def main():
-    parser = argparse.ArgumentParser(description='Send a files over a Unix domain socket.')
-    parser.add_argument('file_paths', type=str, nargs='+', help='Path to the file to send.')
-
-    args = parser.parse_args()
-
-    send_file(args.file_paths)
+def run_client():
+    args = parse_args()  # Get the parsed arguments
+    file_requests = args.file_paths  # Access the file_paths attribute
+   
+    for file_request in file_requests:
+        sock = connect_to_server()
+        send_file_request(sock, file_request.strip())
+        
+        response = get_server_response(sock)
+        if response:
+            print(f"Response for {file_request}:\n{response}")
+        
+        close_connection(sock)
 
 if __name__ == "__main__":
-    main()
+    run_client()
 

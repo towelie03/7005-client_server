@@ -1,98 +1,94 @@
-import os
 import socket
-import struct
-import signal
 import sys
+import os
+import stat
 
-socket_path = "/tmp/socket"
-running = True
-line_len = 4096
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+# Global variables
+SOCKET_PATH = '/tmp/socket'
+LINE_LEN = 4096
 
-def signal_int(sig, frame):
-    global running
-    print("SIGINT received... Shutting down")
-    running = False
-    if os.path.exists(socket_path):
-        os.remove(socket_path)
-    sys.exit(0)
-
-def ub_socket(socket_path):
+def setup_server_socket():
     try:
-        os.unlink(socket_path)
-    except OSError:
-        if os.path.exists(socket_path):
-            raise
+        if os.path.exists(SOCKET_PATH):
+            if stat.S_ISSOCK(os.stat(SOCKET_PATH).st_mode):
+                os.remove(SOCKET_PATH)
+            else:
+                print(f"Error: '{SOCKET_PATH}' is not a socket file.")
+                sys.exit(1)
+        
+        server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server_sock.bind(SOCKET_PATH)
+        server_sock.listen(1)
+        print(f"Server is listening on {SOCKET_PATH}")
+        return server_sock
+    except Exception as e:
+        print(f"Error: Unable to create server socket: {e}")
+        sys.exit(1)
 
-def b_socket(socket_path):
-    s.bind(socket_path)
-    s.listen(1)
-    socket_name = s.getsockname()
-    print(f"Connected at {socket_name}")
-
-def recv_file():
+def wait_for_connection(server_sock):
     try:
-        while running:
-            conn, client_addr = s.accept()
+        conn, _ = server_sock.accept()
+        return conn
+    except Exception as e:
+        print(f"Error: Unable to accept connection: {e}")
+        return None
+
+def process_request(requested_file):
+    try:
+        if os.path.isfile(requested_file):
+            if not os.access(requested_file, os.R_OK):
+                return f"Error: Permission denied for file '{requested_file}'"
+            with open(requested_file, 'r', encoding='utf-8') as file:
+                return file.read()
+        else:
+            return f"Error: File '{requested_file}' not found."
+    except Exception as e:
+        return f"Error: Unable to read file '{requested_file}': {e}"
+
+def send_reply(conn, reply):
+    try:
+        conn.sendall(reply.encode('utf-8'))
+    except BrokenPipeError:
+        print("Error: Client disconnected unexpectedly.")
+    except Exception as e:
+        print(f"Error: Unable to send response: {e}")
+
+def shutdown_socket(sock):
+    try:
+        sock.close()
+        if os.path.exists(SOCKET_PATH):
+            os.remove(SOCKET_PATH)
+    except Exception as e:
+        print(f"Error: Unable to close socket: {e}")
+
+def run_server():
+    server_sock = setup_server_socket()
+
+    try:
+        while True:
+            conn = wait_for_connection(server_sock)
+            if conn is None:
+                continue
+
             try:
-                while True:
-                    file_size_data = conn.recv(4)
-                    if not file_size_data:
-                        break
-                    file_size = struct.unpack('!I', file_size_data)[0]
-                    print(f"File size: {file_size}")
-
-                    file_name_size_data = conn.recv(4)
-                    if not file_name_size_data:
-                        break
-                    file_name_size = struct.unpack('!I', file_name_size_data)[0]
-
-                    file_name = conn.recv(file_name_size).decode('utf-8')
-                    print(f"File name: {file_name}")
-
-                    if not file_name or '\x00' in file_name:
-                        raise ValueError("Invalid file name received.")
-
-                    with open(file_name, 'wb') as file:
-                        bytes_received = 0
-                        while bytes_received < file_size:
-                            chunk = conn.recv(min(file_size - bytes_received, line_len))
-                            if not chunk:
-                                break
-                            file.write(chunk)
-                            bytes_received += len(chunk)
-
-                    print("\nFile contents:")
-                    with open(file_name, 'r') as file:
-                        file_contents = file.read()
-                        print(f"{file_contents}")
-
-                    print("File received\n")
-
-                    confirm_msg = "All files sent successfully :)"
-                    conn.sendall(confirm_msg.encode())
-
+                file_req = conn.recv(1024).decode('utf-8').strip()
+                if not file_req:
+                    break
+                
+                print(f"Received file request: {file_req}")
+                reply = process_request(file_req)
+                send_reply(conn, reply)
+            
             except Exception as e:
-                print(f"error {e}")
+                print(f"Error handling request: {e}")
+            finally:
                 conn.close()
-
-    except Exception as excep:
-        print(f"error {excep}")
+    except KeyboardInterrupt:
+        print("\nServer shutting down...")
     finally:
-        s.close()
-        print("Server closed")
-
-
-
-def main():
-    signal.signal(signal.SIGINT,signal_int)
-    print('Server is running... Press Ctrl+C to stop.')
-    ub_socket(socket_path)
-    b_socket(socket_path)
-    recv_file()
+        shutdown_socket(server_sock)
+        print("Server socket closed and removed")
 
 if __name__ == "__main__":
-    main()
-
-
+    run_server()
 
